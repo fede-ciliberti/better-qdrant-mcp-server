@@ -1,0 +1,64 @@
+{
+  "name": "better-qdrant-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for enhanced Qdrant vector database functionality",
+  "type": "module",
+  "main": "build/index.js",
+  "bin": {
+    "better-qdrant-mcp-server": "build/index.js"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x build/index.js",
+    "start": "node build/index.js",
+    "dev": "tsc -w",
+    "clean": "rm -rf build",
+    "prepare": "npm run build",
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": [
+    "mcp",
+    "qdrant",
+    "vector-database",
+    "embeddings",
+    "semantic-search",
+    "claude",
+    "openai",
+    "ollama",
+    "fastembed"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@langchain/community": "^0.3.36",
+    "@langchain/textsplitters": "^0.1.0",
+    "@modelcontextprotocol/sdk": "^1.7.0",
+    "@qdrant/js-client-rest": "^1.7.0",
+    "axios": "^1.6.7",
+    "dotenv": "^16.4.5",
+    "fastembed": "^1.1.0",
+    "langchain": "^0.3.19",
+    "node-fetch": "^3.3.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "@types/uuid": "^9.0.8",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "build",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wreeves/better-qdrant-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wreeves/better-qdrant-mcp-server/issues"
+  },
+  "homepage": "https://github.com/wreeves/better-qdrant-mcp-server#readme"
+}
