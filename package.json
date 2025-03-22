@@ -55,10 +55,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wreeves/better-qdrant-mcp-server.git"
+    "url": "git+https://github.com/wrediam/better-qdrant-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/wreeves/better-qdrant-mcp-server/issues"
+    "url": "https://github.com/wrediam/better-qdrant-mcp-server/issues"
   },
-  "homepage": "https://github.com/wreeves/better-qdrant-mcp-server#readme"
+  "homepage": "https://github.com/wrediam/better-qdrant-mcp-server#readme"
 }
