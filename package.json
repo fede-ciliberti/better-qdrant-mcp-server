@@ -26,7 +26,7 @@
     "ollama",
     "fastembed"
   ],
-  "author": "",
+  "author": "Will Reeves <will@wredia.com>",
   "license": "MIT",
   "dependencies": {
     "@langchain/community": "^0.3.36",
