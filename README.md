@@ -55,7 +55,14 @@ To use this MCP server with Claude, add it to your MCP settings configuration fi
       "args": ["better-qdrant-mcp-server"],
       "env": {
         "QDRANT_URL": "http://localhost:6333",
-        "OPENAI_API_KEY": "your_openai_api_key"
+        "QDRANT_API_KEY": "your_api_key_if_needed",
+        "DEFAULT_EMBEDDING_SERVICE": "ollama",
+        "OPENAI_API_KEY": "your_openai_api_key",
+        "OPENAI_ENDPOINT": "https://api.openai.com/v1",
+        "OPENROUTER_API_KEY": "your_openrouter_api_key",
+        "OPENROUTER_ENDPOINT": "https://api.openrouter.com/v1",
+        "OLLAMA_ENDPOINT": "http://localhost:11434",
+        "OLLAMA_MODEL": "nomic-embed-text"
       }
     }
   }
