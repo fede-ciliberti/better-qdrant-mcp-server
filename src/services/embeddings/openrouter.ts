@@ -33,11 +33,14 @@ export class OpenRouterEmbeddingService extends BaseEmbeddingService {
       }
     );
 
-    if (!response.data.data || !Array.isArray(response.data.data)) {
+    // Type guard for OpenRouter API response  
+    const data = response.data as { data?: Array<{ embedding?: number[] }> };
+    
+    if (!data.data || !Array.isArray(data.data)) {
       throw new Error('Invalid response from OpenRouter API');
     }
 
-    return response.data.data.map((item: any) => {
+    return data.data.map((item: any) => {
       if (!item.embedding || !Array.isArray(item.embedding)) {
         throw new Error('Invalid embedding format in OpenRouter response');
       }

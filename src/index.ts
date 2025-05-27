@@ -9,8 +9,9 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { config } from 'dotenv';
 import { createQdrantService } from './services/qdrant.js';
-import { createEmbeddingService } from './services/embeddings/index.js';
+import { createEmbeddingService, createAndInitializeEmbeddingService } from './services/embeddings/index.js';
 import { TextProcessor } from './services/text-processing.js';
+import { VectorValidationService } from './services/validation.js';
 import { v4 as uuidv4 } from 'uuid';
 import { readFileSync } from 'fs';
 
@@ -40,6 +41,7 @@ class BetterQdrantServer {
   private server: Server;
   private qdrantService;
   private textProcessor;
+  private validationService;
 
   constructor() {
     this.server = new Server(
@@ -60,6 +62,7 @@ class BetterQdrantServer {
       process.env.QDRANT_API_KEY
     );
     this.textProcessor = new TextProcessor();
+    this.validationService = new VectorValidationService(this.qdrantService);
 
     this.setupToolHandlers();
     
@@ -264,21 +267,68 @@ class BetterQdrantServer {
       const content = readFileSync(args.filePath, 'utf-8');
       const chunks = await this.textProcessor.processFile(content, args.filePath);
 
-      // Create embedding service
-      const embeddingService = createEmbeddingService({
+      // Create and initialize embedding service
+      const embeddingService = await createAndInitializeEmbeddingService({
         type: args.embeddingService,
         apiKey: process.env[`${args.embeddingService.toUpperCase()}_API_KEY`],
         endpoint: process.env[`${args.embeddingService.toUpperCase()}_ENDPOINT`],
+        model: process.env[`${args.embeddingService.toUpperCase()}_MODEL`],
       });
+
+      // Validate embedding compatibility with collection
+      const compatibilityResult = await this.validationService.validateEmbeddingCompatibility(
+        args.collection,
+        embeddingService
+      );
+
+      if (!compatibilityResult.isValid) {
+        let errorMessage = `Embedding compatibility error: ${compatibilityResult.reason}`;
+        if (compatibilityResult.suggestedActions) {
+          errorMessage += '\n\nSuggested actions:\n' + 
+            compatibilityResult.suggestedActions.map(action => `- ${action}`).join('\n');
+        }
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: errorMessage,
+            },
+          ],
+          isError: true,
+        };
+      }
 
       // Generate embeddings
       const embeddings = await embeddingService.generateEmbeddings(
         chunks.map(chunk => chunk.text)
       );
 
-      // Create collection if it doesn't exist
-      const collections = await this.qdrantService.listCollections();
-      if (!collections.includes(args.collection)) {
+      // Validate vector data before adding to collection
+      const vectorValidation = this.validationService.validateVectorData(
+        embeddings,
+        embeddingService.vectorSize
+      );
+
+      if (!vectorValidation.isValid) {
+        let errorMessage = `Vector validation failed:\n${vectorValidation.errors.join('\n')}`;
+        if (vectorValidation.warnings.length > 0) {
+          errorMessage += '\n\nWarnings:\n' + vectorValidation.warnings.join('\n');
+        }
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: errorMessage,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Create collection if it doesn't exist (only if validation passed)
+      if (compatibilityResult.action === 'create_collection') {
         await this.qdrantService.createCollection(args.collection, embeddingService.vectorSize);
       }
 
@@ -295,11 +345,18 @@ class BetterQdrantServer {
         }))
       );
 
+      let successMessage = `Successfully processed and added ${chunks.length} chunks to collection ${args.collection}`;
+      
+      // Add validation warnings if any
+      if (vectorValidation.warnings.length > 0) {
+        successMessage += '\n\nWarnings:\n' + vectorValidation.warnings.join('\n');
+      }
+
       return {
         content: [
           {
             type: 'text',
-            text: `Successfully processed and added ${chunks.length} chunks to collection ${args.collection}`,
+            text: successMessage,
           },
         ],
       };
@@ -319,15 +376,58 @@ class BetterQdrantServer {
 
   private async handleSearch(args: SearchArgs) {
     try {
-      // Create embedding service
-      const embeddingService = createEmbeddingService({
+      // Create and initialize embedding service
+      const embeddingService = await createAndInitializeEmbeddingService({
         type: args.embeddingService,
         apiKey: process.env[`${args.embeddingService.toUpperCase()}_API_KEY`],
         endpoint: process.env[`${args.embeddingService.toUpperCase()}_ENDPOINT`],
+        model: process.env[`${args.embeddingService.toUpperCase()}_MODEL`],
       });
+
+      // Validate embedding compatibility with collection
+      const compatibilityResult = await this.validationService.validateEmbeddingCompatibility(
+        args.collection,
+        embeddingService
+      );
+
+      if (!compatibilityResult.isValid) {
+        let errorMessage = `Embedding compatibility error: ${compatibilityResult.reason}`;
+        if (compatibilityResult.suggestedActions) {
+          errorMessage += '\n\nSuggested actions:\n' + 
+            compatibilityResult.suggestedActions.map(action => `- ${action}`).join('\n');
+        }
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: errorMessage,
+            },
+          ],
+          isError: true,
+        };
+      }
 
       // Generate query embedding
       const [queryEmbedding] = await embeddingService.generateEmbeddings([args.query]);
+
+      // Validate the query vector
+      const vectorValidation = this.validationService.validateVectorData(
+        [queryEmbedding],
+        embeddingService.vectorSize
+      );
+
+      if (!vectorValidation.isValid) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Query vector validation failed: ${vectorValidation.errors.join(', ')}`,
+            },
+          ],
+          isError: true,
+        };
+      }
 
       // Search collection
       const results = await this.qdrantService.search(
@@ -355,6 +455,11 @@ class BetterQdrantServer {
       
       if (responseText === '') {
         responseText = 'No results found.';
+      }
+
+      // Add validation warnings if any
+      if (vectorValidation.warnings.length > 0) {
+        responseText += '\nQuery vector warnings:\n' + vectorValidation.warnings.join('\n');
       }
 
       return {

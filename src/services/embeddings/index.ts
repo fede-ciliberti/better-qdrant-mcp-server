@@ -29,6 +29,21 @@ export function createEmbeddingService(config: EmbeddingServiceConfig): Embeddin
   }
 }
 
+/**
+ * Create and initialize an embedding service.
+ * Automatically detects vector dimensions for services that support it.
+ */
+export async function createAndInitializeEmbeddingService(config: EmbeddingServiceConfig): Promise<EmbeddingGenerator> {
+  const service = createEmbeddingService(config);
+  
+  // Initialize vector size for services that support it
+  if (service.initializeVectorSize) {
+    await service.initializeVectorSize();
+  }
+  
+  return service;
+}
+
 export { OpenAIEmbeddingService } from './openai.js';
 export { OpenRouterEmbeddingService } from './openrouter.js';
 export { OllamaEmbeddingService } from './ollama.js';

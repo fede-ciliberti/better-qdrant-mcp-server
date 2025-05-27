@@ -37,12 +37,12 @@
     "dotenv": "^16.4.5",
     "fastembed": "^1.1.0",
     "langchain": "^0.3.19",
-    "node-fetch": "^3.3.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
     "@types/uuid": "^9.0.8",
+    "tsx": "^4.19.4",
     "typescript": "^5.3.3"
   },
   "engines": {

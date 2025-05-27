@@ -1,268 +1,175 @@
 import { QdrantClient } from '@qdrant/js-client-rest';
 import { QdrantService, SearchResult } from '../types.js';
-import fetch from 'node-fetch';
 
+/**
+ * Qdrant service implementation using the official JavaScript client
+ * 
+ * This service provides a clean interface to Qdrant operations
+ * using the official client library instead of direct HTTP calls.
+ */
 export class DefaultQdrantService implements QdrantService {
-  private url: string;
-  private apiKey?: string;
+  constructor(public client: QdrantClient) {}
 
-  constructor(public client: QdrantClient, url: string, apiKey?: string) {
-    this.url = url;
-    this.apiKey = apiKey;
+  /**
+   * Handles Qdrant API errors with proper logging and error transformation
+   */
+  private async handleQdrantError(error: any, operation: string): Promise<never> {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`Qdrant ${operation} error:`, errorMessage);
+    throw new Error(`Failed to ${operation}: ${errorMessage}`);
   }
 
+  /**
+   * Lists all available collections in the Qdrant instance
+   * @returns Array of collection names
+   */
   async listCollections(): Promise<string[]> {
     try {
-      console.log('Attempting to connect to Qdrant server using direct fetch...');
-      
-      // Use direct fetch instead of the client
-      const collectionsUrl = `${this.url}/collections`;
-      console.log(`Fetching from: ${collectionsUrl}`);
-      
-      const response = await fetch(collectionsUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.apiKey ? { 'api-key': this.apiKey } : {})
-        },
-        // @ts-ignore - node-fetch supports timeout
-        timeout: 5000 // 5 second timeout
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const data = await response.json() as { 
-        result: { 
-          collections: Array<{ name: string }> 
-        } 
-      };
-      console.log('Successfully retrieved collections:', data);
-      
-      return data.result.collections.map(c => c.name);
+      const response = await this.client.getCollections();
+      return response.collections?.map(c => c.name) || [];
     } catch (error) {
-      console.error('Error in listCollections:', error);
-      if (error instanceof Error) {
-        console.error(`${error.name}: ${error.message}`);
-        console.error('Stack:', error.stack);
-      }
-      throw error;
+      return this.handleQdrantError(error, 'list collections');
     }
   }
 
+  /**
+   * Creates a new collection with specified vector configuration
+   * @param name Collection name
+   * @param vectorSize Dimension of vectors to store
+   */
   async createCollection(name: string, vectorSize: number): Promise<void> {
     try {
-      console.log('Attempting to create Qdrant collection using direct fetch...');
-      
-      // Use direct fetch instead of the client
-      const createUrl = `${this.url}/collections/${name}`;
-      console.log(`Fetching from: ${createUrl}`);
-      
-      const response = await fetch(createUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.apiKey ? { 'api-key': this.apiKey } : {})
-        },
-        // @ts-ignore - node-fetch supports timeout
-        timeout: 5000, // 5 second timeout
-        body: JSON.stringify({
-          vectors: {
-            size: vectorSize,
-            distance: 'Cosine',
-          }
-        })
+      await this.client.createCollection(name, {
+        vectors: {
+          size: vectorSize,
+          distance: 'Cosine',
+        }
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Successfully created collection:', data);
     } catch (error) {
-      console.error('Error in createCollection:', error);
-      if (error instanceof Error) {
-        console.error(`${error.name}: ${error.message}`);
-        console.error('Stack:', error.stack);
-      }
-      throw error;
+      return this.handleQdrantError(error, 'create collection');
     }
   }
 
+  /**
+   * Adds documents with vectors to a collection
+   * @param collection Collection name
+   * @param documents Array of documents with vectors and metadata
+   */
   async addDocuments(
     collection: string,
     documents: { id: string; vector: number[]; payload: Record<string, any> }[]
   ): Promise<void> {
     try {
-      console.log('Attempting to add documents to Qdrant collection using direct fetch...');
-      
-      // Use direct fetch instead of the client
-      const upsertUrl = `${this.url}/collections/${collection}/points`;
-      console.log(`Fetching from: ${upsertUrl}`);
-      
       const points = documents.map(doc => ({
         id: doc.id,
         vector: doc.vector,
         payload: doc.payload,
       }));
-      
-      const response = await fetch(upsertUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.apiKey ? { 'api-key': this.apiKey } : {})
-        },
-        // @ts-ignore - node-fetch supports timeout
-        timeout: 10000, // 10 second timeout for potentially larger uploads
-        body: JSON.stringify({
-          points
-        })
+
+      await this.client.upsert(collection, {
+        wait: true,
+        points
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Successfully added documents:', data);
     } catch (error) {
-      console.error('Error in addDocuments:', error);
-      if (error instanceof Error) {
-        console.error(`${error.name}: ${error.message}`);
-        console.error('Stack:', error.stack);
-      }
-      throw error;
+      return this.handleQdrantError(error, 'add documents');
     }
   }
 
+  /**
+   * Deletes a collection and all its data
+   * @param name Collection name to delete
+   */
   async deleteCollection(name: string): Promise<void> {
     try {
-      console.log('Attempting to delete Qdrant collection using direct fetch...');
-      
-      // Use direct fetch instead of the client
-      const deleteUrl = `${this.url}/collections/${name}`;
-      console.log(`Fetching from: ${deleteUrl}`);
-      
-      const response = await fetch(deleteUrl, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.apiKey ? { 'api-key': this.apiKey } : {})
-        },
-        // @ts-ignore - node-fetch supports timeout
-        timeout: 5000 // 5 second timeout
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Successfully deleted collection:', data);
+      await this.client.deleteCollection(name);
     } catch (error) {
-      console.error('Error in deleteCollection:', error);
-      if (error instanceof Error) {
-        console.error(`${error.name}: ${error.message}`);
-        console.error('Stack:', error.stack);
-      }
-      throw error;
+      return this.handleQdrantError(error, 'delete collection');
     }
   }
 
+  /**
+   * Performs vector similarity search in a collection
+   * @param collection Collection name to search in
+   * @param vector Query vector
+   * @param limit Maximum number of results
+   * @returns Array of search results with scores and payloads
+   */
   async search(
     collection: string,
     vector: number[],
     limit: number = 10
   ): Promise<SearchResult[]> {
     try {
-      console.log('Attempting to search Qdrant collection using direct fetch...');
-      
-      // Use direct fetch instead of the client
-      const searchUrl = `${this.url}/collections/${collection}/points/search`;
-      console.log(`Fetching from: ${searchUrl}`);
-      
-      const response = await fetch(searchUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(this.apiKey ? { 'api-key': this.apiKey } : {})
-        },
-        // @ts-ignore - node-fetch supports timeout
-        timeout: 5000, // 5 second timeout
-        body: JSON.stringify({
-          vector,
-          limit,
-          with_payload: true,
-          with_vector: true
-        })
+      const response = await this.client.search(collection, {
+        vector,
+        limit,
+        with_payload: true,
+        with_vector: false // We don't need vectors in search results
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      const data = await response.json() as { 
-        result: Array<{
-          id: string;
-          score: number;
-          payload: Record<string, any>;
-          vector?: number[];
-        }> 
-      };
-      
-      console.log('Successfully retrieved search results:', data);
-      
-      return data.result.map(result => {
-        const searchResult: SearchResult = {
-          id: result.id,
-          score: result.score,
-          payload: result.payload,
-        };
-        
-        // Only include vector if it's a number array
-        if (Array.isArray(result.vector) && result.vector.every(v => typeof v === 'number')) {
-          searchResult.vector = result.vector;
-        }
-        
-        return searchResult;
-      });
+
+      return response.map(point => ({
+        id: String(point.id),
+        score: point.score,
+        payload: point.payload || {},
+        vector: point.vector as number[] || undefined
+      }));
     } catch (error) {
-      console.error('Error in search:', error);
-      if (error instanceof Error) {
-        console.error(`${error.name}: ${error.message}`);
-        console.error('Stack:', error.stack);
+      return this.handleQdrantError(error, 'search collection');
+    }
+  }
+
+  /**
+   * Checks if a collection exists
+   * @param name Collection name to check
+   * @returns True if collection exists, false otherwise
+   */
+  async collectionExists(name: string): Promise<boolean> {
+    try {
+      const collections = await this.listCollections();
+      return collections.includes(name);
+    } catch (error) {
+      console.warn(`Could not check if collection ${name} exists:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Gets collection information including vector configuration
+   * @param name Collection name
+   * @returns Collection info or null if not found
+   */
+  async getCollectionInfo(name: string): Promise<{ vectorSize: number; distance: string } | null> {
+    try {
+      const info = await this.client.getCollection(name);
+      if (info.config?.params?.vectors) {
+        const vectorConfig = info.config.params.vectors;
+        if (typeof vectorConfig === 'object' && 'size' in vectorConfig) {
+          return {
+            vectorSize: vectorConfig.size as number,
+            distance: (vectorConfig.distance as string) || 'Cosine'
+          };
+        }
       }
-      throw error;
+      return null;
+    } catch (error) {
+      console.warn(`Could not get collection info for ${name}:`, error);
+      return null;
     }
   }
 }
 
+/**
+ * Factory function to create a Qdrant service instance
+ * @param url Qdrant server URL
+ * @param apiKey Optional API key for authentication
+ * @returns Configured QdrantService instance
+ */
 export function createQdrantService(url: string, apiKey?: string): QdrantService {
-  // Parse the URL to handle port correctly
-  const urlObj = new URL(url);
-  
-  // Create client with explicit host and port if provided
-  const clientConfig: any = {
-    host: urlObj.hostname,
+  const client = new QdrantClient({
+    url,
     apiKey,
-    checkCompatibility: false,
-    https: urlObj.protocol === 'https:',
-  };
+    checkCompatibility: false
+  });
   
-  // Only set port if it's explicitly in the URL
-  if (urlObj.port) {
-    clientConfig.port = parseInt(urlObj.port, 10);
-  }
-  
-  // Add path if present
-  if (urlObj.pathname !== '/' && urlObj.pathname !== '') {
-    clientConfig.prefix = urlObj.pathname;
-  }
-  
-  console.log('Creating Qdrant client with config:', clientConfig);
-  const client = new QdrantClient(clientConfig);
-
-  return new DefaultQdrantService(client, url, apiKey);
+  return new DefaultQdrantService(client);
 }

@@ -35,6 +35,9 @@ export interface SearchResult {
 export interface EmbeddingGenerator {
   generateEmbeddings(texts: string[]): Promise<number[][]>;
   vectorSize: number;
+  
+  // Optional initialization method for services that need to detect dimensions
+  initializeVectorSize?(): Promise<void>;
 }
 
 export interface QdrantService {
@@ -44,4 +47,6 @@ export interface QdrantService {
   deleteCollection(name: string): Promise<void>;
   addDocuments(collection: string, documents: { id: string; vector: number[]; payload: Record<string, any> }[]): Promise<void>;
   search(collection: string, vector: number[], limit?: number): Promise<SearchResult[]>;
+  collectionExists(name: string): Promise<boolean>;
+  getCollectionInfo(name: string): Promise<{ vectorSize: number; distance: string } | null>;
 }
